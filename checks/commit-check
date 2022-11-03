@@ -1,0 +1,147 @@
+#!/usr/bin/env perl
+
+## commit-check --- Simple git commit style checker
+# Copyright (C) 2014  Tom Willemse <tom@ryuslash.org>
+
+# commit-check is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# commit-check is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+# General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with commit-ccheck. If not, see <http://www.gnu.org/licenses/>.
+
+=head1 Commit check
+
+This is a simple commit style checker. It is made to be used as a git
+C<commit-msg> hook. It expects the name of the file to check as the
+first command-line argument. The style that's checked is based on
+tpope's L<A Note About Git Commit
+Messages|http://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html>.
+
+=head2 Command-line options
+
+There are 2 command line options available for use with this program:
+
+=over
+
+=item -0
+
+Don't return a non-zero status when errors have been found. For use as
+a git C<commit-msg> hook it is important that it does exit with a
+non-zero status. But if you are using it for other tools, such as for
+a flycheck checker, exiting with a non-zero status might confuse the
+tools calling it.
+
+=item -h
+
+Show a little help text that describes the command line options and
+usage.
+
+=back
+
+When no arguments are passed (not even the file name) the help text is
+also shown and the exit status is non-0 (no matter if C<-0> has been
+given).
+
+=head2 Errors
+
+Currently there are 5 style errors that are checked for.
+
+=over
+
+=item 1
+
+The first character of the first line of the commit message should be
+capitalized.
+
+=item 2
+
+The first line of the commit message should be no longer than 50
+characters.
+
+=item 3
+
+The first line of the commit message should not end with a period.
+
+=item 4
+
+The second line of the commit message should be empty.
+
+=item 5
+
+No line should be longer than 72 characters.
+
+=back
+
+All comments are skipped and so is all whitespace at the beginning of
+the file.
+
+If any of the error conditions are encountered, and the C<-0> option
+has not been given, the program will exit with a non-C<0> status. This
+has the effect of stopping git from committing the message when this
+program is used as a C<commit-msg> hook. Each error condition
+encountered also prints a message to the standard error stream.
+
+=cut
+
+use strict;
+use warnings;
+use File::Basename;
+use Getopt::Std;
+
+my $lineno = 0;
+my $status = 0;
+my %arguments = ();
+
+sub err {
+    my ($msg) = @_;
+
+    print STDERR basename($0) .":". $ARGV[0] .":$.: ". $msg ."\n";
+    $status = 1;
+}
+
+sub usage {
+    my ($status) = @_;
+    print "Usage: commit-check [-0|-h] <file>\n"
+        . "\n"
+        . "Accepted arguments:\n"
+        . "  -0   Always return 0 exit-status, regardless of errors found.\n"
+        . "  -h   Show this help text.\n";
+    exit $status;
+}
+
+getopts("0h", \%arguments);
+
+usage 0 if $arguments{h};
+usage 1 if !$ARGV[0];
+
+open(my $commitfile, "<", $ARGV[0]) or die "Couldn't open $ARGV[0]";
+
+while (<$commitfile>) {
+    next if /^#/;                 # Discard comments
+    next if $lineno == 0 && /^$/; # Discard leading empty lines
+    $lineno++;                    # Start at 1, so increment first
+
+    if ($lineno == 1) {
+        # Special commit messages for signalling rebase --autosquash
+        last if /^(?:fixup|amend|squash)!/;
+
+        err "First line is not capitalized" if /^[^[:upper:]]/;
+        err "First line is longer than 50 characters" if /^.{51,}/;
+        err "First line ends with a period" if /\.$/;
+        next;
+    }
+
+    err "Second line should be empty" if $lineno == 2 && /.+/;
+    err "Line is longer than 72 characters" if /^.{73,}/;
+}
+
+close $commitfile;
+exit $status if !$arguments{0};
+exit 0;
