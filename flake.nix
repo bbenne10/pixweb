@@ -41,10 +41,10 @@
         commonDepsArgs = {
           name = "pixweb-deps";
           src = ./.;
+          doCheck = false;
         };
       in rec {
         packages = rec {
-          cargoArtifacts = craneLib.buildDepsOnly (commonDepsArgs);
           cargoArtifactsWasm = craneLib.buildDepsOnly
             (commonDepsArgs // { CARGO_BUILD_TARGET = wasmTarget; });
           ui = craneLib.buildPackage {
@@ -52,28 +52,24 @@
             version = "0.1";
             src = ./.;
             cargoArtifacts = cargoArtifactsWasm;
-            cargoBuildCommand = "cargo build --workspace --release -p ui";
             CARGO_BUILD_TARGET = wasmTarget;
+            doCheck = false;
             postInstall = ''
               mkdir -p $out
               ui_hash=$(echo $out | cut -c12-43)
               substitute \
-                ui/index.html \
+                index.html \
                 $out/index.html \
                 --subst-var "ui_hash" \
                 --replace "<!--" "" \
                 --replace "-->" ""
 
-              cp -r ui/assets/ $out
-
               ${pkgs.wasm-bindgen-cli}/bin/wasm-bindgen \
                 --target=web \
                 --out-dir=$out/ \
                 --out-name=ui-$ui_hash \
-                target/${wasmTarget}/release/ui.wasm \
+                target/${wasmTarget}/release/pixweb.wasm \
                 --no-typescript
-
-              rm -r $out/bin
             '';
           };
           ui_dev_server = pkgs.writeShellApplication {
