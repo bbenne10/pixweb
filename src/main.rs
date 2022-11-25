@@ -67,7 +67,7 @@ impl Component for App {
     fn view(&self, ctx: &Context<Self>) -> Html {
         let tiles = self.colors.iter().map(|color| {
             html! {
-                <ColorTile color={color.to_string()} />
+                <ColorTile bg={color.to_string()} fg={color.invert().to_string()} />
             }
         });
         html! {
